@@ -8,6 +8,13 @@
     <style>
         /* --- 1. 基础样式 --- */
         body, html { margin: 0; padding: 0; overflow: hidden; background: #050505; font-family: 'Inter', sans-serif; }
+        /* 全局隐藏水平滚动条 */
+        * { overflow-x: hidden; }
+        /* 全局滚动条样式 - 更细更不明显 */
+        ::-webkit-scrollbar { width: 2px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 1px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
         #canvas-container { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 1; background: #000;}
         
         /* --- 2. 核心编辑器 --- */
@@ -85,14 +92,16 @@
         #settings-panel {
             position: fixed; top: 20px; right: 20px; bottom: 20px; width: 340px;
             background: #080c0f; border: 1px solid #1a1f24; border-radius: 12px;
-            padding: 24px; overflow-y: auto; transform: translateX(380px);
+            padding: 24px; overflow-y: auto; overflow-x: hidden; transform: translateX(380px);
             transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1); z-index: 30;
             box-shadow: -10px 0 40px rgba(0,0,0,0.8);
             display: flex; flex-direction: column;
         }
         #settings-panel.visible { transform: translateX(0); }
-        #settings-panel::-webkit-scrollbar { width: 4px; }
-        #settings-panel::-webkit-scrollbar-thumb { background: #1a1f24; border-radius: 2px; }
+        #settings-panel::-webkit-scrollbar { width: 2px; }
+        #settings-panel::-webkit-scrollbar-track { background: transparent; }
+        #settings-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 1px; }
+        #settings-panel::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
         
         .panel-section { margin-bottom: 30px; }
         .panel-label { 
@@ -140,8 +149,10 @@
         #diary-sidebar.visible { transform: translateX(0); }
         .sidebar-header { font-family: 'JetBrains Mono'; color: #fff; font-size: 12px; letter-spacing: 2px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         #diary-list { flex: 1; overflow-y: auto; }
-        #diary-list::-webkit-scrollbar { width: 4px; }
-        #diary-list::-webkit-scrollbar-thumb { background: #1a1f24; border-radius: 2px; }
+        #diary-list::-webkit-scrollbar { width: 2px; }
+        #diary-list::-webkit-scrollbar-track { background: transparent; }
+        #diary-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 1px; }
+        #diary-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
         .diary-item { padding: 12px; margin-bottom: 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
         .diary-item:hover { background: rgba(255,255,255,0.03); }
         .diary-item.active { background: rgba(0,235,199,0.05); border-color: rgba(0,235,199,0.2); }
@@ -161,7 +172,11 @@
         .lib-title { font-family: 'JetBrains Mono'; color: #fff; font-size: 13px; letter-spacing: 1px; }
         .lib-close { cursor: pointer; color: #666; font-size: 20px; }
         .lib-close:hover { color: #fff; }
-        .lib-content { padding: 20px; overflow-y: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; flex: 1; }
+        .lib-content { padding: 20px; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; flex: 1; }
+        .lib-content::-webkit-scrollbar { width: 2px; }
+        .lib-content::-webkit-scrollbar-track { background: transparent; }
+        .lib-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 1px; }
+        .lib-content::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
         .lib-item { background: #1a1e24; border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; position: relative; }
         .lib-item:hover { border-color: #00ebc7; transform: translateY(-2px); }
         .lib-delete { position: absolute; top: 5px; left: 5px; width: 20px; height: 20px; background: rgba(0,0,0,0.7); color: #ff4444; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0; transition: 0.2s; z-index: 10;}
@@ -265,7 +280,7 @@
     </div>
 
     <div id="settings-panel">
-        <div style="flex: 1; overflow-y: auto;">
+        <div style="flex: 1; overflow-y: auto; overflow-x: hidden;">
         <div class="panel-section">
             <span class="panel-label">Audio Atmosphere</span>
             <div class="upload-btn" onclick="LibraryManager.open('audio')">
@@ -316,7 +331,7 @@
         </div>
         
         </div>
-        <div class="panel-section" style="border-top: 1px solid #1a1f24; padding-top: 20px; margin-top: auto; flex-shrink: 0;">
+        <div class="panel-section" style="border-top: 1px solid #1a1f24; padding-top: 20px; margin-top: 0; flex-shrink: 0;">
             <div id="logout-btn" class="upload-btn" style="background: rgba(255,68,68,0.1); border-color: rgba(255,68,68,0.3); color: #ff4444; display: none; cursor: pointer;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -1663,5 +1678,4 @@
         } // 结束防重复执行检查
     </script>
 </body>
-
 </html>

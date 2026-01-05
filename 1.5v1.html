@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rainy V5 | Audio-Visual Sanctuary</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    <style>
+        /* --- 1. 基础样式 --- */
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #050505; font-family: 'Inter', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 1; background: #000;}
+        
+        /* --- 2. 核心编辑器 --- */
+        #main-editor {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 420px; height: 680px;
+            z-index: 20;
+            display: flex; flex-direction: column; padding: 40px; box-sizing: border-box;
+            transition: opacity 0.3s, transform 0.3s;
+            border-radius: 4px; 
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+        }
+        
+        #editor-bg {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: -1; border-radius: inherit;
+            backdrop-filter: blur(10px) saturate(100%); -webkit-backdrop-filter: blur(10px) saturate(100%);
+            background: rgba(255, 255, 255, 0.02); transition: all 0.2s ease-out;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        #editor-noise {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: -1; border-radius: inherit;
+            opacity: 0.1; pointer-events: none; background-repeat: repeat;
+        }
+
+        .editor-header { text-align: center; margin-bottom: 30px; position: relative; z-index: 2; transition: opacity 0.3s;}
+        .editor-title { 
+            font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: 3px; 
+            color: #fff; text-transform: uppercase; margin-bottom: 12px; text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .editor-meta { 
+            font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #00ebc7; 
+            display: flex; align-items: center; justify-content: center; gap: 8px; 
+        }
+        #logout-btn:hover { 
+            background: rgba(255,68,68,0.2) !important; 
+            border-color: #ff4444 !important; 
+            transform: translateY(-1px);
+        }
+        .status-dot { width: 6px; height: 6px; background: #00ebc7; border-radius: 50%; box-shadow: 0 0 6px #00ebc7; transition: background 0.3s;}
+        .status-dot.saving { background: #ffcc00; box-shadow: 0 0 6px #ffcc00; }
+        
+        .editor-content { flex: 1; position: relative; z-index: 2; overflow: hidden; padding: 0; }
+        textarea {
+            width: 100%; height: 100%; background: transparent; border: none; resize: none; outline: none;
+            color: rgba(255, 255, 255, 0.9); font-family: 'Inter', sans-serif; font-weight: 300; font-size: 15px; line-height: 1.8; letter-spacing: 0.5px;
+            padding: 0; margin: 0; box-sizing: border-box;
+        }
+        textarea::placeholder { color: rgba(255, 255, 255, 0.2); font-style: italic; }
+
+        .editor-footer {
+            position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center;
+            padding-top: 20px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            background-size: 100% 1px; background-repeat: no-repeat; background-position: top;
+            user-select: none;
+        }
+        .footer-icons { display: flex; gap: 20px; color: rgba(255,255,255,0.3); align-items: center;}
+        
+        .icon-btn { cursor: pointer; transition: all 0.2s; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;}
+        .icon-btn:hover { color: #00ebc7; transform: scale(1.1); }
+        .icon-btn:active { transform: scale(0.95); }
+        .icon-btn.disabled { opacity: 0.2; pointer-events: none; }
+        
+        /* 音乐播放状态动画 */
+        .icon-btn.playing { color: #00ebc7; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .footer-center-btn { 
+            color: #00ebc7; cursor: pointer; transition: all 0.3s; 
+            width: 30px; height: 30px; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center;
+        }
+        .footer-center-btn:hover { background: rgba(0, 235, 199, 0.1); box-shadow: 0 0 10px rgba(0, 235, 199, 0.2); }
+
+        /* --- 3. 设置面板 --- */
+        #settings-panel {
+            position: fixed; top: 20px; right: 20px; bottom: 20px; width: 340px;
+            background: #080c0f; border: 1px solid #1a1f24; border-radius: 12px;
+            padding: 24px; overflow-y: auto; transform: translateX(380px);
+            transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1); z-index: 30;
+            box-shadow: -10px 0 40px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column;
+        }
+        #settings-panel.visible { transform: translateX(0); }
+        #settings-panel::-webkit-scrollbar { width: 4px; }
+        #settings-panel::-webkit-scrollbar-thumb { background: #1a1f24; border-radius: 2px; }
+        
+        .panel-section { margin-bottom: 30px; }
+        .panel-label { 
+            font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3d5a56; 
+            letter-spacing: 1px; text-transform: uppercase; margin-bottom: 15px; display: block; font-weight: 600;
+        }
+        .upload-btn {
+            border: 1px solid #1a2e2b; background: rgba(0, 235, 199, 0.05); color: #fff;
+            font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 12px; border-radius: 6px;
+            cursor: pointer; text-align: center; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .upload-btn:hover { background: rgba(0, 235, 199, 0.1); border-color: #00ebc7; }
+        
+        .slider-row { margin-bottom: 12px; }
+        .slider-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .slider-name { color: #8a9ba8; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;}
+        .slider-val { color: #00ebc7; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        input[type=range] { width: 100%; -webkit-appearance: none; appearance: none; background: transparent; display: block; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 2px; background: #1a1f24; border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; height: 12px; width: 12px; border-radius: 50%;
+            background: #080c0f; border: 2px solid #00ebc7; margin-top: -5px; cursor: pointer; box-shadow: 0 0 10px rgba(0,235,199,0.3);
+        }
+
+        .fab-container { position: fixed; bottom: 30px; right: 30px; z-index: 40; display: flex; flex-direction: column; gap: 12px; }
+        .fab {
+            width: 44px; height: 44px; border-radius: 50%; background: rgba(20,20,20,0.8);
+            border: 1px solid rgba(255,255,255,0.1); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
+        }
+        .fab:hover { background: #00ebc7; color: #000; }
+        .fab.active { background: #00ebc7; color: #000; }
+        
+        #loader { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #00ebc7; font-family: 'JetBrains Mono'; font-size: 12px; opacity: 0; pointer-events: none; z-index: 50; }
+        .fade-in { animation: fadein 0.3s ease-out; }
+        @keyframes fadein { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- 4. 日记历史记录侧边栏 --- */
+        #diary-sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0; width: 280px;
+            background: rgba(10,14,18,0.95); backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255,255,255,0.05); z-index: 50;
+            transform: translateX(-100%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex; flex-direction: column; padding: 20px;
+        }
+        #diary-sidebar.visible { transform: translateX(0); }
+        .sidebar-header { font-family: 'JetBrains Mono'; color: #fff; font-size: 12px; letter-spacing: 2px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        #diary-list { flex: 1; overflow-y: auto; }
+        #diary-list::-webkit-scrollbar { width: 4px; }
+        #diary-list::-webkit-scrollbar-thumb { background: #1a1f24; border-radius: 2px; }
+        .diary-item { padding: 12px; margin-bottom: 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
+        .diary-item:hover { background: rgba(255,255,255,0.03); }
+        .diary-item.active { background: rgba(0,235,199,0.05); border-color: rgba(0,235,199,0.2); }
+        .item-date { font-family: 'JetBrains Mono'; font-size: 10px; color: #00ebc7; margin-bottom: 4px; }
+        .item-preview { font-size: 12px; color: rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #list-toggle-btn { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); cursor: pointer; color: rgba(255,255,255,0.4); transition: 0.2s; z-index: 5; }
+        #list-toggle-btn:hover { color: #00ebc7; }
+
+        /* --- 5. 资源库模态框 --- */
+        #library-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 500px; max-height: 80vh; background: #0f1216; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; z-index: 200; display: none; flex-direction: column; box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+        }
+        #library-modal.visible { display: flex; animation: fadein 0.3s; }
+        .lib-header { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .lib-title { font-family: 'JetBrains Mono'; color: #fff; font-size: 13px; letter-spacing: 1px; }
+        .lib-close { cursor: pointer; color: #666; font-size: 20px; }
+        .lib-close:hover { color: #fff; }
+        .lib-content { padding: 20px; overflow-y: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; flex: 1; }
+        .lib-item { background: #1a1e24; border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; position: relative; }
+        .lib-item:hover { border-color: #00ebc7; transform: translateY(-2px); }
+        .lib-delete { position: absolute; top: 5px; left: 5px; width: 20px; height: 20px; background: rgba(0,0,0,0.7); color: #ff4444; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0; transition: 0.2s; z-index: 10;}
+        .lib-item:hover .lib-delete { opacity: 1; }
+        .lib-thumb { height: 100px; background-size: cover; background-position: center; background-color: #000; display: flex; align-items: center; justify-content: center; color: #555; font-size: 10px;}
+        .lib-name { padding: 10px; font-size: 11px; color: #aaa; font-family: 'Inter'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .lib-upload-area { padding: 20px; border-top: 1px solid rgba(255,255,255,0.1); }
+
+        /* --- 6. 登录界面 --- */
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); display: flex; align-items: center; justify-content: center; transition: opacity 0.5s; }
+        #login-box { width: 320px; padding: 40px; background: rgba(20,20,20,0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; text-align: center; }
+        .login-input { width: 100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; outline: none; }
+        .login-btn { width: 100%; padding: 12px; background: #00ebc7; color: #000; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+        .login-btn:hover { background: #fff; }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="loader">PROCESSING...</div>
+
+    <div id="login-overlay">
+        <div id="login-box">
+            <div style="color:#fff; font-family:'JetBrains Mono'; margin-bottom:20px; letter-spacing:2px;">ACCESS TERMINAL</div>
+            <p style="color:rgba(255,255,255,0.5); font-size:12px; margin-bottom:20px;">输入邮箱和密码以同步数据</p>
+            <input type="email" id="email-input" class="login-input" placeholder="your@email.com">
+            <input type="password" id="password-input" class="login-input" placeholder="password">
+            <button class="login-btn" id="login-btn">登录 / 注册</button>
+            <div id="login-msg" style="color:#00ebc7; font-size:12px; margin-top:10px; min-height:15px;"></div>
+            <div style="margin-top:15px; font-size:11px; color:rgba(255,255,255,0.4);">
+                <label style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <input type="checkbox" id="remember-me" style="cursor:pointer;">
+                    <span>记住我（下次自动登录）</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div id="diary-sidebar">
+        <div class="sidebar-header">HISTORY ENTRIES</div>
+        <div id="diary-list"></div>
+    </div>
+
+    <div id="library-modal">
+        <div class="lib-header">
+            <span class="lib-title" id="lib-title-text">MEDIA LIBRARY</span>
+            <div class="lib-close" id="lib-close-btn">✕</div>
+        </div>
+        <div class="lib-content" id="lib-grid"></div>
+        <div class="lib-upload-area">
+            <div class="upload-btn" id="btn-lib-upload">+ UPLOAD TO LIBRARY</div>
+            <input type="file" id="lib-upload-input" style="display:none" multiple>
+        </div>
+    </div>
+
+    <div id="main-editor">
+        <div id="editor-bg"></div>
+        <div id="editor-noise"></div>
+        
+        <div class="editor-header">
+            <div id="list-toggle-btn" title="Toggle History">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </div>
+            <div class="editor-title" id="entry-title">New Entry</div>
+            <div class="editor-meta">
+                <div class="status-dot" id="save-status"></div>
+                <span id="entry-date">Loading...</span>
+            </div>
+        </div>
+        
+        <div class="editor-content">
+            <textarea id="diary-text" placeholder="Type something... (Auto-saved)"></textarea>
+        </div>
+        
+        <div class="editor-footer">
+            <div class="footer-icons">
+                <div class="icon-btn" id="btn-delete" title="Delete Entry">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </div>
+                <div class="icon-btn" id="btn-save" title="Save Entry">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                </div>
+                <div class="icon-btn" id="btn-mute" title="Mute Music" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16"><path d="M9 19V5l12-2v13"></path><circle cx="6" cy="19" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                </div>
+            </div>
+            
+            <div class="footer-center-btn" id="btn-new" title="New Entry">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            </div>
+            
+            <div class="footer-icons">
+                <div class="icon-btn" id="btn-prev" title="Previous">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16"><path d="M15 19l-7-7 7-7"></path></svg>
+                </div>
+                <div class="icon-btn" id="btn-next" title="Next">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16"><path d="M9 5l7 7-7 7"></path></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-panel">
+        <div style="flex: 1; overflow-y: auto;">
+        <div class="panel-section">
+            <span class="panel-label">Audio Atmosphere</span>
+            <div class="upload-btn" onclick="LibraryManager.open('audio')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19V5l12-2v13"></path><circle cx="6" cy="19" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                OPEN AUDIO LIBRARY
+            </div>
+            <input type="file" id="audio-input" accept="audio/*" style="display: none;">
+            
+            <div class="slider-row" style="margin-top: 15px;">
+                <div class="slider-header"><span class="slider-name">Volume</span><span class="slider-val" id="val-vol">50%</span></div>
+                <input type="range" id="vol-slider" min="0" max="1.0" step="0.01" value="0.5">
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <span class="panel-label">Media Source</span>
+            <div class="upload-btn" id="btn-open-visual-lib">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                OPEN VISUAL LIBRARY
+            </div>
+            <input type="file" id="file-input" accept="image/*,video/*" style="display: none;">
+        </div>
+
+        <div class="panel-section">
+            <span class="panel-label">Atmosphere</span>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Rain Intensity</span><span class="slider-val" id="val-rain">0%</span></div><input type="range" id="rain-slider" min="0" max="2.0" step="0.01" value="0"></div>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Glass Blur</span><span class="slider-val" id="val-blur">10%</span></div><input type="range" id="blur-slider" min="0" max="1.0" step="0.01" value="0.1"></div>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Speed</span><span class="slider-val" id="val-speed">0.0x</span></div><input type="range" id="speed-slider" min="0" max="5.0" step="0.1" value="0.0"></div>
+        </div>
+
+        <div class="panel-section">
+            <span class="panel-label">Optics</span>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Refraction</span><span class="slider-val" id="val-refract">100%</span></div><input type="range" id="refract-slider" min="0" max="2.0" step="0.01" value="1.0"></div>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Zoom</span><span class="slider-val" id="val-zoom">100%</span></div><input type="range" id="zoom-slider" min="0.5" max="3.0" step="0.01" value="1.0"></div>
+        </div>
+
+        <div class="panel-section">
+            <span class="panel-label">Image</span>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Brightness</span><span class="slider-val" id="val-bright">0.90</span></div><input type="range" id="bright-slider" min="0" max="2.0" step="0.01" value="0.9"></div>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Contrast</span><span class="slider-val" id="val-contrast">1.10</span></div><input type="range" id="contrast-slider" min="0" max="2.0" step="0.01" value="1.1"></div>
+        </div>
+
+        <div class="panel-section" style="border-top: 1px solid #1a1f24; padding-top: 20px;">
+            <span class="panel-label" style="color: #00ebc7;">Interface Card</span>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Opacity</span><span class="slider-val" id="val-ui-opacity">10%</span></div><input type="range" id="ui-opacity" min="0" max="100" step="1" value="10"></div>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Blur</span><span class="slider-val" id="val-ui-blur">10px</span></div><input type="range" id="ui-blur" min="0" max="40" step="1" value="10"></div>
+            <div class="slider-row"><div class="slider-header"><span class="slider-name">Shadow</span><span class="slider-val" id="val-ui-shadow">100%</span></div><input type="range" id="ui-shadow" min="0" max="100" step="1" value="100"></div>
+        </div>
+        
+        </div>
+        <div class="panel-section" style="border-top: 1px solid #1a1f24; padding-top: 20px; margin-top: auto; flex-shrink: 0;">
+            <div id="logout-btn" class="upload-btn" style="background: rgba(255,68,68,0.1); border-color: rgba(255,68,68,0.3); color: #ff4444; display: none; cursor: pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                退出登录
+            </div>
+        </div>
+    </div>
+
+    <div class="fab-container">
+        <div class="fab" id="eye-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></div>
+        <div class="fab" id="settings-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"></path></svg></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // 防止重复执行
+        if (window.__RAINY_APP_INIT__) {
+            console.warn('App already initialized, skipping...');
+        } else {
+            window.__RAINY_APP_INIT__ = true;
+        
+        // --- 0. Supabase 配置 ---
+        const SUPABASE_URL = 'https://rozpupbkkvnhyiemezxl.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_cNLzVOXd0-eonnLaVnBuUA_hyHRKU-P';
+        const STORAGE_BUCKET = 'rainy-media';
+        
+        // 创建 Supabase 客户端
+        let supabase = null;
+        let currentUser = null;
+        
+        if (typeof window.supabase === 'undefined') {
+            console.error('Supabase SDK not loaded. Please check the script tag.');
+            // 如果 SDK 未加载，显示登录界面并提示错误
+            document.addEventListener('DOMContentLoaded', () => {
+                const loginOverlay = document.getElementById('login-overlay');
+                const loginMsg = document.getElementById('login-msg');
+                if (loginOverlay) loginOverlay.style.display = 'flex';
+                if (loginMsg) loginMsg.innerText = 'Supabase SDK 加载失败，请刷新页面重试';
+                if (loginMsg) loginMsg.style.color = '#ff4444';
+            });
+        } else {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            } catch (e) {
+                console.error('Failed to create Supabase client:', e);
+                document.addEventListener('DOMContentLoaded', () => {
+                    const loginOverlay = document.getElementById('login-overlay');
+                    const loginMsg = document.getElementById('login-msg');
+                    if (loginOverlay) loginOverlay.style.display = 'flex';
+                    if (loginMsg) loginMsg.innerText = 'Supabase 初始化失败，请检查配置';
+                    if (loginMsg) loginMsg.style.color = '#ff4444';
+                });
+            }
+        }
+
+        // --- 1. 噪点生成 ---
+        function createNoiseTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d'); const idata = ctx.createImageData(128, 128);
+            const buffer32 = new Uint32Array(idata.data.buffer);
+            for(let i=0; i<buffer32.length; i++) if(Math.random() < 0.5) buffer32[i] = 0xffffffff;
+            ctx.putImageData(idata, 0, 0); return canvas.toDataURL();
+        }
+        document.getElementById('editor-noise').style.backgroundImage = `url(${createNoiseTexture()})`;
+
+        // --- 2. 日记系统 (Supabase) ---
+        const DiaryManager = {
+            entries: [], currentIndex: 0, timer: null,
+            async init() {
+                if(!currentUser) {
+                    // 即使没有用户，也显示界面（允许用户看到登录提示）
+                    this.renderCurrent();
+                    this.bindEvents();
+                    return;
+                }
+                
+                try {
+                    const { data, error } = await supabase
+                        .from('diaries')
+                        .select('*')
+                        .eq('user_id', currentUser.id)
+                        .order('created_at', { ascending: true });
+                    
+                    if (error) {
+                        console.error('Failed to load diaries:', error);
+                        // 即使加载失败，也创建一个临时条目让用户可以输入
+                        this.entries = [{
+                            content: "",
+                            text: "",
+                            date_str: this.getFormattedDate(),
+                            id: null
+                        }];
+                        this.currentIndex = 0;
+                    } else if (data && data.length > 0) {
+                        this.entries = data;
+                        this.currentIndex = this.entries.length - 1;
+                    } else {
+                        // 没有数据，创建一个临时条目
+                        this.entries = [{
+                            content: "",
+                            text: "",
+                            date_str: this.getFormattedDate(),
+                            id: null
+                        }];
+                        this.currentIndex = 0;
+                    }
+                } catch (e) {
+                    console.error('Init error:', e);
+                    // 出错时也创建一个临时条目
+                    this.entries = [{
+                        content: "",
+                        text: "",
+                        date_str: this.getFormattedDate(),
+                        id: null
+                    }];
+                    this.currentIndex = 0;
+                }
+                
+                this.renderCurrent();
+                this.bindEvents();
+            },
+            async createNewEntry() {
+                const dateStr = this.getFormattedDate();
+                const { data, error } = await supabase
+                    .from('diaries')
+                    .insert([{ user_id: currentUser.id, date_str: dateStr, content: "" }])
+                    .select();
+                if(data && data[0]) {
+                    this.entries.push(data[0]);
+                    this.currentIndex = this.entries.length - 1;
+                }
+            },
+            getFormattedDate() { 
+                const d = new Date(); 
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            },
+            triggerSave() {
+                const dot = document.getElementById('save-status');
+                dot.classList.add('saving');
+                clearTimeout(this.timer);
+                this.timer = setTimeout(() => this.saveToCloud(), 1000);
+            },
+            async saveToCloud() {
+                if(!currentUser || this.entries.length === 0) return;
+                const entry = this.entries[this.currentIndex];
+                if(!entry.id) return;
+                
+                const { error } = await supabase
+                    .from('diaries')
+                    .update({ content: entry.content, date_str: entry.date_str || this.getFormattedDate() })
+                    .eq('id', entry.id);
+                
+                const dot = document.getElementById('save-status');
+                dot.classList.remove('saving');
+                if(!error) {
+                    this.updateSidebar();
+                } else {
+                    console.error('Save error:', error);
+                }
+            },
+            async manualSave() {
+                // 手动保存功能
+                // 如果 currentUser 为空，尝试从会话中获取
+                if (!currentUser) {
+                    try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session) {
+                            currentUser = session.user;
+                        } else {
+                            alert('请先登录');
+                            return;
+                        }
+                    } catch (e) {
+                        alert('请先登录');
+                        return;
+                    }
+                }
+                
+                // 获取当前输入的内容
+                const textEl = document.getElementById('diary-text');
+                const currentContent = textEl ? textEl.value : '';
+                
+                // 如果没有条目，创建一个新的
+                if (this.entries.length === 0) {
+                    await this.createNewEntry();
+                    if (this.entries.length === 0) {
+                        alert('创建日记失败，请检查网络连接');
+                        return;
+                    }
+                    this.renderCurrent();
+                }
+                
+                const entry = this.entries[this.currentIndex];
+                
+                // 更新条目内容和日期（使用当前日期）
+                entry.content = currentContent;
+                entry.text = currentContent; // 兼容字段
+                entry.date_str = this.getFormattedDate(); // 更新为当前日期
+                
+                // 如果没有ID，先创建到云端
+                if(!entry.id) {
+                    await this.createNewEntry();
+                    this.renderCurrent();
+                    // 创建后再次获取entry（因为createNewEntry会更新entries数组）
+                    const newEntry = this.entries[this.currentIndex];
+                    if (newEntry && newEntry.id) {
+                        // 更新内容
+                        newEntry.content = currentContent;
+                        newEntry.text = currentContent;
+                        newEntry.date_str = this.getFormattedDate();
+                        await this.saveToCloud();
+                    }
+                } else {
+                    // 已有ID，直接保存
+                    const dot = document.getElementById('save-status');
+                    if (dot) dot.classList.add('saving');
+                    await this.saveToCloud();
+                }
+                
+                const dot = document.getElementById('save-status');
+                if (dot) dot.classList.remove('saving');
+                alert('保存成功！');
+            },
+            renderCurrent() {
+                if(this.entries.length === 0) {
+                    // 如果没有条目，显示当前日期和空内容
+                    const textEl = document.getElementById('diary-text');
+                    if (textEl) {
+                        textEl.value = "";
+                    }
+                    const currentDate = this.getFormattedDate();
+                    const dateObj = new Date();
+                    const formattedDate = dateObj.toLocaleDateString('zh-CN', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric',
+                        weekday: 'long'
+                    });
+                    const titleEl = document.getElementById('entry-title');
+                    const dateEl = document.getElementById('entry-date');
+                    if (titleEl) titleEl.innerText = formattedDate || currentDate;
+                    if (dateEl) dateEl.innerText = currentDate;
+                    return;
+                }
+                
+                const entry = this.entries[this.currentIndex];
+                const textEl = document.getElementById('diary-text');
+                if (!textEl) return;
+                
+                textEl.classList.remove('fade-in'); 
+                void textEl.offsetWidth; 
+                textEl.classList.add('fade-in');
+                
+                // 使用当前日期（实时更新）
+                const currentDate = this.getFormattedDate();
+                const dateObj = new Date();
+                const formattedDate = dateObj.toLocaleDateString('zh-CN', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric',
+                    weekday: 'long'
+                });
+                
+                // 更新条目的日期为当前日期
+                entry.date_str = currentDate;
+                
+                const titleEl = document.getElementById('entry-title');
+                const dateEl = document.getElementById('entry-date');
+                if (titleEl) titleEl.innerText = formattedDate || currentDate;
+                if (dateEl) dateEl.innerText = currentDate;
+                textEl.value = entry.content || entry.text || "";
+                
+                const btnPrev = document.getElementById('btn-prev');
+                const btnNext = document.getElementById('btn-next');
+                if(btnPrev) btnPrev.classList.toggle('disabled', this.currentIndex === 0);
+                if(btnNext) btnNext.classList.toggle('disabled', this.currentIndex === this.entries.length - 1);
+                this.updateSidebar();
+            },
+            updateSidebar() {
+                const list = document.getElementById('diary-list');
+                list.innerHTML = '';
+                this.entries.forEach((entry, idx) => {
+                    const el = document.createElement('div');
+                    el.className = `diary-item ${idx === this.currentIndex ? 'active' : ''}`;
+                    const content = entry.content || entry.text || '';
+                    const preview = content ? content.substring(0, 30) + (content.length > 30 ? '...' : '') : 'Empty Entry...';
+                    const date = entry.date_str || entry.date || '';
+                    // 格式化日期显示
+                    let dateDisplay = date;
+                    if(date && date.includes('-')) {
+                        try {
+                            const d = new Date(date);
+                            dateDisplay = d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+                        } catch(e) {}
+                    }
+                    el.innerHTML = `<div class="item-date">#${idx + 1} · ${dateDisplay}</div><div class="item-preview">${preview}</div>`;
+                    el.onclick = () => { this.currentIndex = idx; this.renderCurrent(); };
+                    list.appendChild(el);
+                });
+            },
+            async addEntry() {
+                await this.createNewEntry();
+                this.renderCurrent();
+            },
+            async deleteEntry() {
+                const entry = this.entries[this.currentIndex];
+                if(this.entries.length <= 1) {
+                    entry.content = "";
+                    this.triggerSave();
+                    this.renderCurrent();
+                    return;
+                }
+                if(confirm("Delete this entry?")) {
+                    if(entry.id) {
+                        await supabase.from('diaries').delete().eq('id', entry.id);
+                    }
+                    this.entries.splice(this.currentIndex, 1);
+                    if(this.currentIndex >= this.entries.length) this.currentIndex = this.entries.length - 1;
+                    this.renderCurrent();
+                }
+            },
+            bindEvents() {
+                const diaryText = document.getElementById('diary-text');
+                if(diaryText) {
+                    diaryText.addEventListener('input', (e) => {
+                        // 确保有条目
+                        if (this.entries.length === 0) {
+                            this.entries = [{
+                                content: "",
+                                text: "",
+                                date_str: this.getFormattedDate(),
+                                id: null
+                            }];
+                            this.currentIndex = 0;
+                        }
+                        
+                        const entry = this.entries[this.currentIndex];
+                        if(entry) {
+                            entry.content = e.target.value;
+                            entry.text = e.target.value; // 兼容字段
+                            entry.date_str = this.getFormattedDate(); // 更新日期为当前日期
+                            this.triggerSave();
+                            this.updateSidebar();
+                        }
+                    });
+                }
+                
+                // 确保按钮绑定在全局作用域
+                const btnNew = document.getElementById('btn-new');
+                if(btnNew) {
+                    btnNew.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.addEntry();
+                    };
+                }
+                
+                const btnPrev = document.getElementById('btn-prev');
+                if(btnPrev) {
+                    btnPrev.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if(this.currentIndex > 0) {
+                            this.currentIndex--;
+                            this.renderCurrent();
+                        }
+                    };
+                }
+                
+                const btnNext = document.getElementById('btn-next');
+                if(btnNext) {
+                    btnNext.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if(this.currentIndex < this.entries.length - 1) {
+                            this.currentIndex++;
+                            this.renderCurrent();
+                        }
+                    };
+                }
+                
+                const btnDelete = document.getElementById('btn-delete');
+                if(btnDelete) {
+                    btnDelete.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.deleteEntry();
+                    };
+                }
+                
+                const btnSave = document.getElementById('btn-save');
+                if(btnSave) {
+                    btnSave.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.manualSave();
+                    };
+                }
+                
+                const sidebar = document.getElementById('diary-sidebar');
+                const toggleBtn = document.getElementById('list-toggle-btn');
+                if(toggleBtn && sidebar) {
+                    toggleBtn.onclick = (e) => { e.stopPropagation(); sidebar.classList.toggle('visible'); };
+                    document.addEventListener('click', (e) => {
+                        if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) sidebar.classList.remove('visible');
+                    });
+                }
+            }
+        };
+
+        // --- 3. 资源库管理系统 (使用 Supabase Storage) ---
+        window.LibraryManager = {
+            currentType: 'visual',
+            async init() {
+                // 不需要初始化，直接使用 Supabase Storage
+            },
+            async open(type) {
+                // 如果 currentUser 为空，尝试从会话中获取
+                if (!currentUser) {
+                    try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session) {
+                            currentUser = session.user;
+                        } else {
+                            alert('请先登录');
+                            return;
+                        }
+                    } catch (e) {
+                        alert('请先登录');
+                        return;
+                    }
+                }
+                this.currentType = type;
+                const modal = document.getElementById('library-modal');
+                const grid = document.getElementById('lib-grid');
+                modal.classList.add('visible');
+                document.getElementById('lib-title-text').innerText = type === 'visual' ? 'VISUAL LIBRARY' : 'AUDIO LIBRARY';
+                grid.innerHTML = '<div style="color:#666; font-size:12px; padding:20px;">Loading...</div>';
+                
+                try {
+                    // 首先尝试从用户文件夹读取
+                    let { data, error } = await supabase.storage
+                        .from(STORAGE_BUCKET)
+                        .list(`${currentUser.id}/${type}`, {
+                            limit: 100,
+                            offset: 0,
+                            sortBy: { column: 'created_at', order: 'desc' }
+                        });
+                    
+                    // 如果用户文件夹为空，尝试读取根目录和所有子文件夹
+                    if((error || !data || data.length === 0) && type === 'visual') {
+                        // 尝试读取根目录
+                        const rootList = await supabase.storage
+                            .from(STORAGE_BUCKET)
+                            .list('', { limit: 100 });
+                        
+                        if(rootList.data && rootList.data.length > 0) {
+                            // 收集所有可能的文件
+                            const allFiles = [];
+                            
+                            // 读取根目录文件
+                            for(const item of rootList.data) {
+                                if(!item.id) { // 是文件夹
+                                    const folderList = await supabase.storage
+                                        .from(STORAGE_BUCKET)
+                                        .list(item.name, { limit: 100 });
+                                    if(folderList.data) {
+                                        folderList.data.forEach(file => {
+                                            if(file.id && (file.name.match(/\.(jpg|jpeg|png|gif|webp|mp4|webm)$/i))) {
+                                                allFiles.push({ ...file, folder: item.name });
+                                            }
+                                        });
+                                    }
+                                } else if(item.id && item.name.match(/\.(jpg|jpeg|png|gif|webp|mp4|webm)$/i)) {
+                                    // 根目录的直接文件
+                                    allFiles.push({ ...item, folder: '' });
+                                }
+                            }
+                            
+                            if(allFiles.length > 0) {
+                                data = allFiles;
+                                error = null;
+                            }
+                        }
+                    } else if((error || !data || data.length === 0) && type === 'audio') {
+                        // 音频文件：尝试读取根目录
+                        const rootList = await supabase.storage
+                            .from(STORAGE_BUCKET)
+                            .list('', { limit: 100 });
+                        
+                        if(rootList.data && rootList.data.length > 0) {
+                            const allFiles = [];
+                            for(const item of rootList.data) {
+                                if(!item.id) { // 是文件夹
+                                    const folderList = await supabase.storage
+                                        .from(STORAGE_BUCKET)
+                                        .list(item.name, { limit: 100 });
+                                    if(folderList.data) {
+                                        folderList.data.forEach(file => {
+                                            if(file.id && file.name.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+                                                allFiles.push({ ...file, folder: item.name });
+                                            }
+                                        });
+                                    }
+                                } else if(item.id && item.name.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+                                    allFiles.push({ ...item, folder: '' });
+                                }
+                            }
+                            if(allFiles.length > 0) {
+                                data = allFiles;
+                                error = null;
+                            }
+                        }
+                    }
+                    
+                    grid.innerHTML = '';
+                    if(error || !data || data.length === 0) {
+                        grid.innerHTML = '<div style="color:#666; font-size:12px; padding:20px;">Empty Library. Upload some files!</div>';
+                        return;
+                    }
+                    
+                    data.forEach(file => {
+                        if(file.name === '.emptyFolderPlaceholder') return;
+                        
+                        // 根据文件位置构建路径
+                        let filePath;
+                        if(file.folder !== undefined) {
+                            // 从其他文件夹读取的文件
+                            filePath = file.folder ? `${file.folder}/${file.name}` : file.name;
+                        } else {
+                            // 从用户文件夹读取的文件
+                            filePath = `${currentUser.id}/${type}/${file.name}`;
+                        }
+                        
+                        const publicUrl = supabase.storage
+                            .from(STORAGE_BUCKET)
+                            .getPublicUrl(filePath)
+                            .data.publicUrl;
+                        
+                        const el = document.createElement('div');
+                        el.className = 'lib-item';
+                        const isVideo = file.name.toLowerCase().endsWith('.mp4') || file.name.toLowerCase().endsWith('.webm');
+                        let thumbStyle = '';
+                        if(type === 'visual') {
+                            thumbStyle = `background-image: url('${publicUrl}');`;
+                        } else {
+                            thumbStyle = `background: linear-gradient(45deg, #00ebc7, #0088ff);`;
+                        }
+                        el.innerHTML = `
+                            <div class="lib-delete">✕</div>
+                            <div class="lib-thumb" style="${thumbStyle}">${type === 'audio' ? '🎵' : ''}</div>
+                            <div class="lib-name">${file.name}</div>
+                        `;
+                        const deleteBtn = el.querySelector('.lib-delete');
+                        if(deleteBtn) {
+                            deleteBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                const filePath = file.folder !== undefined 
+                                    ? (file.folder ? `${file.folder}/${file.name}` : file.name)
+                                    : `${currentUser.id}/${type}/${file.name}`;
+                                window.LibraryManager.delete(file.name, filePath);
+                            };
+                        }
+                        el.onclick = () => { this.apply(type, publicUrl, isVideo); modal.classList.remove('visible'); };
+                        grid.appendChild(el);
+                    });
+                } catch (e) {
+                    grid.innerHTML = '<div style="color:#ff4444; font-size:12px; padding:20px;">Error loading library</div>';
+                }
+            },
+            close() {
+                document.getElementById('library-modal').classList.remove('visible');
+            },
+            async save(file, type) {
+                if(!currentUser) return;
+                const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+                const filePath = `${currentUser.id}/${type}/${fileName}`;
+                
+                document.getElementById('loader').style.opacity = 1;
+                const { data, error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .upload(filePath, file);
+                
+                document.getElementById('loader').style.opacity = 0;
+                
+                if(error) {
+                    alert('Upload failed: ' + error.message);
+                    throw error;
+                }
+                return data;
+            },
+            async delete(fileName, filePath = null) {
+                if(!confirm(`Delete ${fileName}?`)) return;
+                if(!currentUser) return;
+                
+                // 如果没有提供完整路径，使用默认路径
+                const pathToDelete = filePath || `${currentUser.id}/${this.currentType}/${fileName}`;
+                const { error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .remove([pathToDelete]);
+                
+                if(error) {
+                    alert('Delete failed: ' + error.message);
+                } else {
+                    this.open(this.currentType);
+                }
+            },
+            apply(type, url, isVideo) {
+                if (type === 'visual') {
+                    if(isVideo) {
+                        const v = document.createElement('video');
+                        v.src = url;
+                        v.crossOrigin = "anonymous";
+                        v.loop = true;
+                        v.muted = true;
+                        v.play();
+                        v.onloadeddata = () => {
+                            uniforms.iImageResolution.value.set(v.videoWidth, v.videoHeight);
+                            applyTex(new THREE.VideoTexture(v));
+                        };
+                    } else {
+                        new THREE.TextureLoader().load(url, (t) => {
+                            uniforms.iImageResolution.value.set(t.image.width, t.image.height);
+                            applyTex(t);
+                        });
+                    }
+                } else {
+                    AudioManager.playUrl(url);
+                }
+            }
+        };
+        
+        const libUploadInput = document.getElementById('lib-upload-input');
+        if(libUploadInput) {
+            libUploadInput.onchange = async (e) => {
+            // 如果 currentUser 为空，尝试从会话中获取
+            if (!currentUser) {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) {
+                        currentUser = session.user;
+                    } else {
+                        alert('请先登录');
+                        return;
+                    }
+                } catch (err) {
+                    alert('请先登录');
+                    return;
+                }
+            }
+            const files = Array.from(e.target.files);
+            if(files.length === 0) return;
+            
+            try {
+                for(const file of files) {
+                    const isAudio = file.type.startsWith('audio');
+                    const type = isAudio ? 'audio' : 'visual';
+                    await LibraryManager.save(file, type);
+                }
+                LibraryManager.open(LibraryManager.currentType);
+            } catch (error) {
+                console.error('Upload error:', error);
+            }
+            e.target.value = '';
+            };
+        }
+
+        // --- 4. 音频系统 ---
+        const AudioManager = {
+            audio: new Audio(),
+            isPlaying: false,
+            init() {
+                this.audio.loop = true;
+                this.audio.volume = 0.5;
+                
+                // 上传
+                const audioInput = document.getElementById('audio-input');
+                if(audioInput) {
+                    audioInput.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if(!file) return;
+                        this.audio.src = URL.createObjectURL(file);
+                        this.audio.play();
+                        this.isPlaying = true;
+                        this.updateUI();
+                    };
+                }
+
+                // 音量
+                const volSlider = document.getElementById('vol-slider');
+                const volVal = document.getElementById('val-vol');
+                if(volSlider && volVal) {
+                    volSlider.oninput = (e) => {
+                        this.audio.volume = e.target.value;
+                        volVal.innerText = Math.round(e.target.value * 100) + '%';
+                    };
+                }
+
+                // 快捷静音按钮
+                const muteBtn = document.getElementById('btn-mute');
+                if(muteBtn) {
+                    muteBtn.onclick = () => {
+                        if(this.audio.paused) { this.audio.play(); this.isPlaying = true; }
+                        else { this.audio.pause(); this.isPlaying = false; }
+                        this.updateUI();
+                    };
+                }
+            },
+            playUrl(url) {
+                this.audio.src = url;
+                this.audio.play();
+                this.isPlaying = true;
+                this.updateUI();
+            },
+            updateUI() {
+                const muteBtn = document.getElementById('btn-mute');
+                muteBtn.style.display = this.audio.src ? 'flex' : 'none';
+                muteBtn.classList.toggle('playing', this.isPlaying);
+                muteBtn.style.opacity = this.isPlaying ? 1 : 0.5;
+            }
+        };
+
+        // --- 4. GLSL Shader (核心雨景) ---
+        const vertexShader = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`;
+        const fragmentShader = `
+            uniform float iTime;
+            uniform vec2 iResolution;
+            uniform vec2 iImageResolution; 
+            uniform sampler2D iChannel0;
+            uniform bool uHasTexture;
+            uniform float uRainAmount;
+            uniform float uBlur;
+            uniform float uRefraction;
+            uniform float uSpeed;
+            uniform float uZoom;
+            uniform float uBrightness;
+            uniform float uContrast;
+
+            varying vec2 vUv;
+            vec3 N13(float p) { vec3 p3 = fract(vec3(p) * vec3(.1031, .11369, .13787)); p3 += dot(p3, p3.yzx + 19.19); return fract(vec3((p3.x + p3.y)*p3.z, (p3.x+p3.z)*p3.y, (p3.y+p3.z)*p3.x)); }
+            float N(float t) { return fract(sin(t*12345.564)*7658.76); }
+            float Saw(float b, float t) { return smoothstep(0., b, t) * smoothstep(1., b, t); }
+            
+            vec2 DropLayer2(vec2 uv, float t) {
+                vec2 UV = uv; uv.y += t*0.75;
+                vec2 a = vec2(6., 3.); vec2 grid = a*2.;
+                vec2 id = floor(uv*grid); float colShift = N(id.x); uv.y += colShift;
+                id = floor(uv*grid); vec3 n = N13(id.x*35.2+id.y*2376.1);
+                vec2 st = fract(uv*grid)-vec2(.5, 0); float x = n.x-.5; float y = UV.y*20.;
+                float wiggle = sin(y+sin(y)); x += wiggle*(.5-abs(x))*(n.z-.5); x *= .7;
+                float ti = fract(t+n.z); y = (Saw(.85, ti)-.5)*.9+.5;
+                vec2 p = vec2(x, y); float d = length((st-p)*a.yx);
+                float mainDrop = smoothstep(.4, .1, d); 
+                float r = sqrt(smoothstep(1., y, st.y)); float cd = abs(st.x-x);
+                float trail = smoothstep(.23*r, .15*r*r, cd); float trailFront = smoothstep(-.02, .02, st.y-y); trail *= trailFront*r*r;
+                y = UV.y; float trail2 = smoothstep(.2*r, .0, cd); float droplets = max(0., (sin(y*(1.-y)*120.)-st.y))*trail2*trailFront*n.z;
+                y = fract(y*10.)+(st.y-.5); float dd = length(st-vec2(x, y)); droplets = smoothstep(.3, 0., dd);
+                float m = mainDrop+droplets*r*trailFront; return vec2(m, trail);
+            }
+            vec2 Drops(vec2 uv, float t, float l0, float l1, float l2) {
+                vec2 m1 = DropLayer2(uv, t)*l1; vec2 m2 = DropLayer2(uv*1.85, t)*l2;
+                float c = m1.x+m2.x; c = smoothstep(.3, 1., c); return vec2(c, max(m1.y*l0, m2.y*l1));
+            }
+            void main() {
+                vec2 uv = vUv; vec2 uvRatio = (gl_FragCoord.xy-.5*iResolution.xy) / iResolution.y; float t = iTime * .2;
+                vec2 drops = Drops(uvRatio, t, 1.0, uRainAmount, uRainAmount * 1.5);
+                vec2 normal = vec2(dFdx(drops.x), dFdy(drops.x)) * 2.5; 
+                float screenAspect = iResolution.x / iResolution.y;
+                float imageAspect = uHasTexture ? (iImageResolution.x / iImageResolution.y) : screenAspect;
+                vec2 centeredUV = uv - 0.5; vec2 scrolledUV = centeredUV + vec2(iTime * uSpeed * 0.05, 0.0); vec2 zoomedUV = scrolledUV * (1.0 / uZoom);
+                vec2 scaleFactor = vec2(1.0);
+                if (screenAspect > imageAspect) { scaleFactor = vec2(1.0, imageAspect / screenAspect); } 
+                else { scaleFactor = vec2(screenAspect / imageAspect, 1.0); }
+                vec2 finalBgUV = (zoomedUV / scaleFactor) + 0.5 + normal * uRefraction * 0.08;
+                vec3 col;
+                if (uHasTexture) {
+                    float blurAmt = uBlur * 0.02; vec3 c = texture2D(iChannel0, finalBgUV).rgb;
+                    if(uBlur > 0.0) {
+                         c += texture2D(iChannel0, finalBgUV + vec2(blurAmt, blurAmt)).rgb;
+                         c += texture2D(iChannel0, finalBgUV + vec2(-blurAmt, blurAmt)).rgb;
+                         c += texture2D(iChannel0, finalBgUV + vec2(blurAmt, -blurAmt)).rgb;
+                         c += texture2D(iChannel0, finalBgUV + vec2(-blurAmt, -blurAmt)).rgb;
+                         c /= 5.0;
+                    }
+                    col = c;
+                } else {
+                    float noise = N(floor(uv.y * 100.0) + iTime * 20.0); vec3 base = vec3(0.02, 0.05, 0.08);
+                    float light = smoothstep(0.98, 1.0, noise) * 0.5; col = base + vec3(light * 0.5, light * 0.8, light);
+                }
+                col *= uBrightness; col = (col - 0.5) * max(uContrast, 0.0) + 0.5;
+                vec3 lightDir = normalize(vec3(-1.0, 1.0, 0.5)); vec3 dropNormal3D = normalize(vec3(normal, 1.0)); 
+                float specular = pow(max(0.0, dot(dropNormal3D, lightDir)), 32.0) * drops.x;
+                col += specular * 0.8;
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `;
+
+        // --- 5. Three.js Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const uniforms = {
+            iTime: { value: 0 },
+            iResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            iImageResolution: { value: new THREE.Vector2(16, 9) },
+            iChannel0: { value: null }, uHasTexture: { value: false },
+            uRainAmount: { value: 0.0 }, uBlur: { value: 0.1 }, uRefraction: { value: 1.0 },
+            uSpeed: { value: 0.0 }, uZoom: { value: 1.0 }, uBrightness: { value: 0.9 }, uContrast: { value: 1.1 }
+        };
+        scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms })));
+
+        // --- 7. 登录与会话管理 ---
+        async function checkSession() {
+            // 这个函数只在用户手动登录后调用，用于初始化
+            // 不会自动隐藏登录界面
+            if (!supabase) {
+                return;
+            }
+            
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) {
+                    console.error("Session check error:", error);
+                    return;
+                }
+                
+                if (session) {
+                    currentUser = session.user;
+                    
+                    // 显示退出登录按钮
+                    const logoutBtn = document.getElementById('logout-btn');
+                    if (logoutBtn) logoutBtn.style.display = 'flex';
+                    
+                    await DiaryManager.init();
+                    AudioManager.init();
+                } else {
+                    // 隐藏退出登录按钮
+                    const logoutBtn = document.getElementById('logout-btn');
+                    if (logoutBtn) logoutBtn.style.display = 'none';
+                }
+            } catch (e) {
+                console.error("Session check failed:", e);
+            }
+        }
+
+        const loginBtn = document.getElementById('login-btn');
+        if(loginBtn) {
+            loginBtn.onclick = async () => {
+                if (!supabase) {
+                    const msg = document.getElementById('login-msg');
+                    if (msg) msg.innerText = "Supabase 未初始化，请刷新页面重试";
+                    if (msg) msg.style.color = '#ff4444';
+                    return;
+                }
+                
+                const email = document.getElementById('email-input').value;
+                const password = document.getElementById('password-input').value;
+                const msg = document.getElementById('login-msg');
+                
+                if(!email || !password) {
+                    if (msg) {
+                        msg.innerText = "请填写邮箱和密码";
+                        msg.style.color = '#ff4444';
+                    }
+                    return;
+                }
+                if(password.length < 6) {
+                    if (msg) {
+                        msg.innerText = "密码至少需要6个字符";
+                        msg.style.color = '#ff4444';
+                    }
+                    return;
+                }
+
+                if (msg) {
+                    msg.innerText = "连接中...";
+                    msg.style.color = '#00ebc7';
+                }
+                try {
+                    // 先尝试登录
+                    let { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                    
+                    if (error) {
+                        // 登录失败，尝试注册（可能是新用户）
+                        if (msg) {
+                            msg.innerText = "正在尝试注册...";
+                            msg.style.color = '#00ebc7';
+                        }
+                        
+                        const signUp = await supabase.auth.signUp({ email, password });
+                        
+                        if (signUp.error) {
+                            // 注册失败
+                            const signUpErrorMsg = signUp.error.message || '';
+                            
+                            if (signUpErrorMsg.includes('already registered') || 
+                                signUpErrorMsg.includes('User already registered')) {
+                                // 用户已注册，说明密码可能错误
+                                if (msg) {
+                                    msg.innerText = "该邮箱已注册，密码错误，请检查密码";
+                                    msg.style.color = '#ff4444';
+                                }
+                            } else {
+                                // 其他注册错误
+                                if (msg) {
+                                    msg.innerText = signUpErrorMsg || "注册失败，请重试";
+                                    msg.style.color = '#ff4444';
+                                }
+                            }
+                        } else {
+                            // 注册成功，自动登录
+                            if (msg) {
+                                msg.innerText = "账户已创建！正在登录...";
+                                msg.style.color = '#00ebc7';
+                            }
+                            const rememberMe = document.getElementById('remember-me');
+                            if (rememberMe && rememberMe.checked) {
+                                localStorage.setItem('autoLogin', 'true');
+                            }
+                            // 等待一下让会话建立，然后检查并初始化
+                            setTimeout(async () => {
+                                await checkSession();
+                                const loginOverlay = document.getElementById('login-overlay');
+                                if (loginOverlay) loginOverlay.style.display = 'none';
+                            }, 1000);
+                        }
+                    } else {
+                        // 登录成功，立即更新 currentUser
+                        currentUser = data.user;
+                        
+                        const rememberMe = document.getElementById('remember-me');
+                        if (rememberMe && rememberMe.checked) {
+                            localStorage.setItem('autoLogin', 'true');
+                        } else {
+                            localStorage.setItem('autoLogin', 'false');
+                        }
+                        
+                        if (msg) {
+                            msg.innerText = "登录成功！";
+                            msg.style.color = '#00ebc7';
+                        }
+                        // 隐藏登录界面并初始化
+                        setTimeout(async () => {
+                            const loginOverlay = document.getElementById('login-overlay');
+                            if (loginOverlay) loginOverlay.style.display = 'none';
+                            
+                    // 显示退出登录按钮
+                    const logoutBtn = document.getElementById('logout-btn');
+                    if (logoutBtn) logoutBtn.style.display = 'flex';
+                            
+                            // 确保 currentUser 已设置后再初始化
+                            if (currentUser) {
+                                await DiaryManager.init();
+                                AudioManager.init();
+                            } else {
+                                await checkSession();
+                            }
+                        }, 500);
+                    }
+                } catch (e) {
+                    if (msg) {
+                        msg.innerText = "连接错误：" + (e.message || "请检查 Supabase 配置");
+                        msg.style.color = '#ff4444';
+                    }
+                    console.error("Login error:", e);
+                }
+            };
+        }
+
+        // --- 6. 退出登录功能 ---
+        async function logout() {
+            if (!confirm('确定要退出登录吗？')) {
+                return;
+            }
+            
+            try {
+                // 清除 Supabase session
+                if (supabase) {
+                    await supabase.auth.signOut();
+                }
+                
+                // 清除本地数据
+                currentUser = null;
+                localStorage.removeItem('autoLogin');
+                
+                // 清空日记数据
+                if (DiaryManager) {
+                    DiaryManager.entries = [];
+                    DiaryManager.currentIndex = 0;
+                }
+                
+                // 显示登录界面
+                const loginOverlay = document.getElementById('login-overlay');
+                if (loginOverlay) loginOverlay.style.display = 'flex';
+                
+                // 隐藏退出按钮
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) logoutBtn.style.display = 'none';
+                
+                // 清空输入框
+                const diaryText = document.getElementById('diary-text');
+                if (diaryText) diaryText.value = '';
+                
+                // 重置标题和日期
+                const entryTitle = document.getElementById('entry-title');
+                const entryDate = document.getElementById('entry-date');
+                if (entryTitle) entryTitle.innerText = 'New Entry';
+                if (entryDate) entryDate.innerText = 'Loading...';
+                
+                console.log('已退出登录');
+            } catch (e) {
+                console.error('退出登录失败:', e);
+                alert('退出登录失败，请刷新页面');
+            }
+        }
+        
+        // 绑定退出登录按钮
+        function bindLogoutButton() {
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    logout();
+                };
+            }
+        }
+
+        // --- 7. 事件与初始化 ---
+        // 完全禁用自动登录，用户必须手动登录
+        // 登录界面默认显示，不会自动消失
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginOverlay = document.getElementById('login-overlay');
+            if (loginOverlay) {
+                // 始终显示登录界面，不自动检查session
+                loginOverlay.style.display = 'flex';
+            }
+            
+            // 绑定退出登录按钮
+            bindLogoutButton();
+        });
+        
+        // 备用按钮绑定（确保按钮可用）
+        function ensureButtonsBound() {
+            if (DiaryManager && DiaryManager.entries && DiaryManager.entries.length > 0) {
+                const btnNew = document.getElementById('btn-new');
+                const btnPrev = document.getElementById('btn-prev');
+                const btnNext = document.getElementById('btn-next');
+                const btnDelete = document.getElementById('btn-delete');
+                const btnSave = document.getElementById('btn-save');
+                
+                if (btnNew && !btnNew.onclick) {
+                    btnNew.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        DiaryManager.addEntry();
+                    };
+                }
+                if (btnPrev && !btnPrev.onclick) {
+                    btnPrev.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if(DiaryManager.currentIndex > 0) {
+                            DiaryManager.currentIndex--;
+                            DiaryManager.renderCurrent();
+                        }
+                    };
+                }
+                if (btnNext && !btnNext.onclick) {
+                    btnNext.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if(DiaryManager.currentIndex < DiaryManager.entries.length - 1) {
+                            DiaryManager.currentIndex++;
+                            DiaryManager.renderCurrent();
+                        }
+                    };
+                }
+                if (btnDelete && !btnDelete.onclick) {
+                    btnDelete.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        DiaryManager.deleteEntry();
+                    };
+                }
+                if (btnSave && !btnSave.onclick) {
+                    btnSave.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        DiaryManager.manualSave();
+                    };
+                }
+            }
+        }
+        
+        // 定期检查按钮绑定（作为备用方案）
+        setInterval(ensureButtonsBound, 1000);
+
+        function bind(id, cb, fmt) {
+            const el = document.getElementById(id);
+            if(!el) return; // 如果元素不存在，跳过
+            const valEl = document.getElementById('val-' + id.replace('-slider','').replace('ui-',''));
+            const upd = () => { const v = parseFloat(el.value); cb(v); if(valEl) valEl.innerText = fmt ? fmt(v) : v; };
+            el.addEventListener('input', upd); upd();
+        }
+        
+        bind('rain-slider', v => uniforms.uRainAmount.value = v, v => Math.round(v*50)+'%');
+        bind('blur-slider', v => uniforms.uBlur.value = v, v => Math.round(v*100)+'%');
+        bind('speed-slider', v => uniforms.uSpeed.value = v, v => v.toFixed(1)+'x');
+        bind('refract-slider', v => uniforms.uRefraction.value = v, v => Math.round(v*50)+'%');
+        bind('zoom-slider', v => uniforms.uZoom.value = v, v => Math.round(v*100)+'%');
+        bind('bright-slider', v => uniforms.uBrightness.value = v, v => v.toFixed(2));
+        bind('contrast-slider', v => uniforms.uContrast.value = v, v => v.toFixed(2));
+
+        const editorBg = document.getElementById('editor-bg'), editor = document.getElementById('main-editor');
+        bind('ui-opacity', v => editorBg.style.backgroundColor = `rgba(255,255,255,${v/1000})`, v=>v+'%');
+        bind('ui-blur', v => editorBg.style.backdropFilter = editorBg.style.webkitBackdropFilter = `blur(${v}px) saturate(100%)`, v=>v+'px');
+        bind('ui-shadow', v => editor.style.boxShadow = `0 30px ${v}px rgba(0,0,0,${v/150})`, v=>v+'%');
+
+        let panelOpen = false, editorVisible = true;
+        
+        // 按钮事件绑定（确保元素存在）
+        function initButtons() {
+            const settingsBtn = document.getElementById('settings-btn');
+            const eyeBtn = document.getElementById('eye-btn');
+            const settingsPanel = document.getElementById('settings-panel');
+            const editor = document.getElementById('main-editor');
+            
+            if(settingsBtn && settingsPanel) {
+                settingsBtn.onclick = (e) => {
+                    panelOpen = !panelOpen;
+                    settingsPanel.classList.toggle('visible', panelOpen);
+                    settingsBtn.classList.toggle('active', panelOpen);
+                };
+            }
+            
+            if(eyeBtn && editor) {
+                eyeBtn.onclick = (e) => {
+                    editorVisible = !editorVisible;
+                    editor.style.opacity = editorVisible ? 1 : 0;
+                    editor.style.transform = editorVisible ? 'translate(-50%, -50%)' : 'translate(-50%, -45%)';
+                    eyeBtn.classList.toggle('active', !editorVisible);
+                };
+            }
+            
+            // 资源库按钮
+            const btnOpenAudio = document.getElementById('btn-open-audio-lib');
+            if(btnOpenAudio) {
+                btnOpenAudio.onclick = () => {
+                    if(window.LibraryManager) {
+                        window.LibraryManager.open('audio');
+                    } else {
+                        alert('Library manager not initialized');
+                    }
+                };
+            }
+            
+            const btnOpenVisual = document.getElementById('btn-open-visual-lib');
+            if(btnOpenVisual) {
+                btnOpenVisual.onclick = () => {
+                    if(window.LibraryManager) {
+                        window.LibraryManager.open('visual');
+                    } else {
+                        alert('Library manager not initialized');
+                    }
+                };
+            }
+            
+            const libCloseBtn = document.getElementById('lib-close-btn');
+            if(libCloseBtn) {
+                libCloseBtn.onclick = () => {
+                    if(window.LibraryManager) {
+                        window.LibraryManager.close();
+                    }
+                };
+            }
+            
+            const btnLibUpload = document.getElementById('btn-lib-upload');
+            const libUploadInput = document.getElementById('lib-upload-input');
+            if(btnLibUpload && libUploadInput) {
+                btnLibUpload.onclick = () => {
+                    libUploadInput.click();
+                };
+            }
+        }
+        
+        // 确保 DOM 加载完成后再初始化按钮
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initButtons);
+        } else {
+            initButtons();
+        }
+
+        const loader = document.getElementById('loader');
+        const fileInput = document.getElementById('file-input');
+        if(fileInput) {
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0]; if(!file) return;
+                loader.style.opacity = 1;
+                const url = URL.createObjectURL(file);
+                const isVideo = file.type.startsWith('video');
+                if(isVideo) {
+                    const v = document.createElement('video'); v.src = url; v.loop = true; v.muted = true; v.play();
+                    v.onloadeddata = () => { uniforms.iImageResolution.value.set(v.videoWidth, v.videoHeight); applyTex(new THREE.VideoTexture(v)); };
+                } else {
+                    new THREE.TextureLoader().load(url, (t) => { uniforms.iImageResolution.value.set(t.image.width, t.image.height); applyTex(t); });
+                }
+            };
+        }
+        function applyTex(t) {
+            t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+            t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping; 
+            uniforms.iChannel0.value = t; uniforms.uHasTexture.value = true;
+            uniforms.uSpeed.value = 0.0; document.getElementById('speed-slider').value = 0.0;
+            uniforms.uZoom.value = 1.0; document.getElementById('zoom-slider').value = 1.0;
+            loader.style.opacity = 0;
+        }
+
+        // 加载默认背景视频 cat.mp4（从 Supabase Storage）
+        async function loadDefaultBackground() {
+            if (!supabase) {
+                console.warn('Supabase not initialized, cannot load default background');
+                return;
+            }
+            
+            try {
+                // 尝试从 Supabase Storage 获取 cat.mp4
+                // 先尝试根目录
+                let filePath = 'cat.mp4';
+                
+                // 获取公开 URL
+                const { data: urlData } = supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .getPublicUrl(filePath);
+                
+                if (urlData && urlData.publicUrl) {
+                    const video = document.createElement('video');
+                    video.src = urlData.publicUrl;
+                    video.crossOrigin = "anonymous";
+                    video.loop = true;
+                    video.muted = true;
+                    video.playsInline = true;
+                    
+                    video.onloadeddata = () => {
+                        uniforms.iImageResolution.value.set(video.videoWidth, video.videoHeight);
+                        applyTex(new THREE.VideoTexture(video));
+                        console.log('Default background (cat.mp4) loaded successfully');
+                    };
+                    
+                    video.onerror = (e) => {
+                        console.warn('Failed to load default background video from Supabase:', e);
+                        // 尝试其他可能的路径
+                        tryAlternativePaths();
+                    };
+                    
+                    // 尝试播放视频
+                    video.play().catch(e => {
+                        console.warn('Video autoplay failed, will play on user interaction:', e);
+                    });
+                } else {
+                    // 如果获取 URL 失败，尝试其他路径
+                    tryAlternativePaths();
+                }
+            } catch (e) {
+                console.warn('Error loading default background:', e);
+            }
+        }
+        
+        // 尝试其他可能的路径
+        async function tryAlternativePaths() {
+            if (!supabase) return;
+            
+            const alternativePaths = [
+                'public/cat.mp4',
+                'default/cat.mp4',
+                'backgrounds/cat.mp4'
+            ];
+            
+            for (const path of alternativePaths) {
+                try {
+                    const { data: urlData } = supabase.storage
+                        .from(STORAGE_BUCKET)
+                        .getPublicUrl(path);
+                    
+                    if (urlData && urlData.publicUrl) {
+                        const video = document.createElement('video');
+                        video.src = urlData.publicUrl;
+                        video.crossOrigin = "anonymous";
+                        video.loop = true;
+                        video.muted = true;
+                        video.playsInline = true;
+                        
+                        video.onloadeddata = () => {
+                            uniforms.iImageResolution.value.set(video.videoWidth, video.videoHeight);
+                            applyTex(new THREE.VideoTexture(video));
+                            console.log(`Default background loaded from: ${path}`);
+                        };
+                        
+                        video.onerror = () => {
+                            // 继续尝试下一个路径
+                        };
+                        
+                        video.play().catch(() => {});
+                        return; // 找到可用路径，停止尝试
+                    }
+                } catch (e) {
+                    // 继续尝试下一个路径
+                }
+            }
+        }
+
+        // 页面加载后加载默认背景（等待 Supabase 初始化）
+        function initDefaultBackground() {
+            if (supabase) {
+                loadDefaultBackground();
+            } else {
+                // 如果 Supabase 还没初始化，等待一下
+                setTimeout(initDefaultBackground, 100);
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(initDefaultBackground, 500); // 等待 Supabase SDK 加载
+            });
+        } else {
+            setTimeout(initDefaultBackground, 500);
+        }
+
+        function animate(t) { requestAnimationFrame(animate); uniforms.iTime.value = t * 0.001; renderer.render(scene, camera); }
+        animate();
+        window.onresize = () => { renderer.setSize(window.innerWidth, window.innerHeight); uniforms.iResolution.value.set(window.innerWidth, window.innerHeight); };
+        
+        } // 结束防重复执行检查
+    </script>
+</body>
+</html>
